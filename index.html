@@ -37,6 +37,17 @@ p{max-width:520px;font-family:system-ui,sans-serif;font-size:15px;line-height:1.
 .how{text-align:left;max-width:440px;font-family:system-ui,sans-serif;font-size:14px;line-height:1.5;color:#e9def7;
   background:rgba(0,0,0,.35);border:2px solid var(--purple);border-radius:12px;padding:12px 16px}
 .how b{color:var(--yellow)}
+.board{width:min(92vw,380px);margin:12px auto 4px;font-family:system-ui,sans-serif;font-size:14px;background:rgba(0,0,0,.35);border:2px solid var(--teal);border-radius:12px;padding:8px 12px;box-sizing:border-box}
+.board h3{font-family:'Bangers',sans-serif;letter-spacing:2px;font-weight:normal;color:var(--teal);margin:2px 0 6px;font-size:22px}
+.board ol{margin:0;padding:0;list-style:none;counter-reset:r}
+.board li{display:flex;gap:8px;padding:3px 0;border-top:1px solid rgba(255,255,255,.08);counter-increment:r}
+.board li:before{content:counter(r)'.';width:22px;color:#b9a6d6;text-align:right}
+.board li .n{flex:1;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.board li .s{color:var(--yellow);font-weight:700}
+.board li.me{background:rgba(232,51,139,.25);border-radius:6px}
+.post{display:flex;gap:6px;justify-content:center;align-items:center;margin:8px 0 2px;flex-wrap:wrap}
+.post input{font-size:16px;padding:8px 10px;border-radius:10px;border:2px solid #6B3FA0;background:#1d0d33;color:#fff;width:150px;text-transform:uppercase;-webkit-user-select:text;user-select:text;touch-action:auto}
+.post .btn{font-size:20px;padding:6px 18px;margin:0}
 </style>
 </head>
 <body>
@@ -64,6 +75,7 @@ p{max-width:520px;font-family:system-ui,sans-serif;font-size:15px;line-height:1.
   <div style="margin-top:12px;font-family:system-ui;font-size:14px;color:#e9def7">Start the fight in <select id="locSel" style="font-size:15px;padding:6px 8px;border-radius:8px;border:2px solid #6B3FA0;background:#1d0d33;color:#fff"></select></div>
   <button class="btn" id="startBtn" style="margin-top:10px">DEFEND BC</button>
   <p class="small" id="hiTitle"></p>
+  <div class="board" id="boardTitle" style="display:none"><h3>TOP DEFENDERS OF BC</h3><ol></ol></div>
 </div>
 
 <div class="screen" id="sSafe">
@@ -79,6 +91,9 @@ p{max-width:520px;font-family:system-ui,sans-serif;font-size:15px;line-height:1.
   <div class="sub" id="overSub"></div>
   <img class="linda" src="linda.jpg" alt="Linda" style="max-height:min(34vh,300px);filter:grayscale(.4) drop-shadow(0 0 18px rgba(232,51,139,.5))">
   <p id="overText"></p>
+  <div class="post" id="postBox" style="display:none"><input id="nameIn" maxlength="12" placeholder="YOUR NAME" autocomplete="off"><button class="btn teal" id="postBtn">POST SCORE</button></div>
+  <p class="small" id="postMsg"></p>
+  <div class="board" id="boardOver" style="display:none"><h3>TOP DEFENDERS OF BC</h3><ol></ol></div>
   <button class="btn" id="againBtn">BACK INTO THE FIGHT</button>
   <p class="small">Bang On is 99 proof. Enjoy it responsibly, and never drink and drive.</p>
 </div>
@@ -89,6 +104,20 @@ const cv=document.getElementById('c'),cx=cv.getContext('2d');
 let W=0,H=0,DPR=1;
 const $=id=>document.getElementById(id);
 const store={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
+// Online leaderboard and play counter (Supabase). Blank values switch both off.
+const SB_URL='',SB_KEY='';
+const ON=!!(SB_URL&&SB_KEY);
+let PID=store.get('bangon_pid');if(!PID){PID=Array.from(crypto.getRandomValues(new Uint8Array(12)),b=>b.toString(16).padStart(2,'0')).join('');store.set('bangon_pid',PID)}
+function sb(path,opt={}){return fetch(SB_URL+'/rest/v1/'+path,{...opt,headers:{apikey:SB_KEY,Authorization:'Bearer '+SB_KEY,'Content-Type':'application/json',...(opt.headers||{})}})}
+function logPlay(){if(!ON)return;sb('plays',{method:'POST',headers:{Prefer:'return=minimal'},body:JSON.stringify({player:PID})}).catch(()=>{})}
+let myLast=null;
+function loadBoard(id){if(!ON)return;const el=document.getElementById(id);
+  sb('leaderboard?select=name,score,wave').then(r=>r.ok?r.json():[]).then(rows=>{const ol=el.querySelector('ol');ol.innerHTML='';
+    if(!rows.length){el.style.display='';const li=document.createElement('li');li.textContent='No scores yet. Be the first.';ol.appendChild(li);return}
+    rows.forEach(r=>{const li=document.createElement('li');const n=document.createElement('span');n.className='n';n.textContent=r.name;
+      const s=document.createElement('span');s.className='s';s.textContent=r.score.toLocaleString('en-CA');li.append(n,s);
+      if(myLast&&r.name===myLast.name&&r.score===myLast.score)li.className='me';ol.appendChild(li)});el.style.display=''}).catch(()=>{})}
+function postScore(name,score,wave){return sb('scores',{method:'POST',headers:{Prefer:'return=minimal'},body:JSON.stringify({name,score,wave,player:PID})})}
 const rnd=(a,b)=>a+Math.random()*(b-a), clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 
 /* ---------- flavours ---------- */
@@ -151,6 +180,7 @@ const UP=[
  {id:'rate',  label:'QUICK-DRAW HOLSTER  (FASTER FIRE)',f:g=>{g.cool=Math.max(.08,g.cool*.75)}}
 ];
 function newGame(){
+  logPlay();
   G={wave:1,off:startOff,score:0,shield:100,maxShield:100,dmgBonus:0,meterMul:1,cool:.22,cd:0,
      ammo:[12,12,12,12,12],sel:2,meter:0,aim:-Math.PI/2,
      aliens:[],bolts:[],fruit:[],halves:[],parts:[],texts:[],swill:[],ufos:[],
@@ -614,7 +644,7 @@ function drawSay(){
 /* ---------- flow ---------- */
 function show(id){['sAge','sTitle','sSafe','sOver'].forEach(s=>$(s).classList.toggle('on',s===id))}
 function hi(){return parseInt(store.get('bangon_hi')||'0')||0}
-function toTitle(){state='title';show('sTitle');const h=hi();$('hiTitle').textContent=h?('Best score on this device: '+h):''}
+function toTitle(){state='title';show('sTitle');const h=hi();$('hiTitle').textContent=h?('Best score on this device: '+h):'';loadBoard('boardTitle')}
 function waveClear(){
   state='safe';G.shield=Math.min(G.maxShield,G.shield+40);
   const next=LOC[(G.wave+G.off)%LOC.length].name;
@@ -630,6 +660,9 @@ function gameOver(){
   state='over';const h=hi();if(G.score>h)store.set('bangon_hi',G.score);
   $('overSub').textContent='SCORE '+G.score+'  ·  WAVE '+G.wave+'  ·  '+G.loc.name;
   $('overText').textContent=G.score>h?'New best on this device. Linda is reloaded and ready to Bang On.':'Best on this device: '+Math.max(h,G.score)+'. Linda is reloaded and ready to Bang On.';
+  $('postMsg').textContent='';
+  if(ON&&G.score>0){$('postBox').style.display='';$('postBtn').disabled=false;$('nameIn').value=store.get('bangon_name')||''}else $('postBox').style.display='none';
+  loadBoard('boardOver');
   show('sOver');
 }
 function loop(t){
@@ -644,6 +677,12 @@ ls.onchange=()=>{startOff=+ls.value};
 $('ageYes').onclick=()=>{store.set('bangon_age','1');audioOn();toTitle()};
 $('ageNo').onclick=()=>{$('ageMsg').textContent='Sorry. Come back when you are of legal drinking age.'};
 $('startBtn').onclick=()=>{audioOn();newGame();state='play';show(null);last=performance.now()};
+$('postBtn').onclick=()=>{const name=$('nameIn').value.trim().toUpperCase().replace(/[^A-Z0-9 ._'-]/g,'').slice(0,12);
+  if(!name){$('postMsg').textContent='Type a name first.';return}
+  store.set('bangon_name',name);$('postBtn').disabled=true;$('postMsg').textContent='Posting...';
+  postScore(name,G.score,G.wave).then(r=>{if(!r.ok)throw 0;myLast={name,score:G.score};$('postBox').style.display='none';$('postMsg').textContent='Score posted.';loadBoard('boardOver')})
+   .catch(()=>{$('postBtn').disabled=false;$('postMsg').textContent='Could not post. Try again.'})};
+$('nameIn').addEventListener('keydown',e=>{if(e.key==='Enter')$('postBtn').click()});
 $('againBtn').onclick=()=>{audioOn();newGame();state='play';show(null);last=performance.now()};
 
 resize();

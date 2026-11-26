@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Bang On: player stats</title>
+<style>
+body{margin:0;background:#140a22;color:#fff;font-family:system-ui,sans-serif;padding:24px 16px}
+h1{font-size:22px;color:#F2D46A;margin:0 0 16px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;max-width:560px}
+.c{background:#1d0d33;border:2px solid #6B3FA0;border-radius:12px;padding:12px}
+.c b{display:block;font-size:30px;color:#4CC3C7}
+.c span{font-size:13px;color:#cbb9e6}
+p{color:#b9a6d6;font-size:13px;max-width:560px}
+</style>
+</head>
+<body>
+<h1>Bang On: player stats</h1>
+<div class="grid" id="g"><div class="c"><span>Loading...</span></div></div>
+<p>A "player" is one phone or browser. Someone who plays on two devices counts twice, and clearing browser data makes them count as new.</p>
+<script>
+const SB_URL='',SB_KEY='';
+const L=[['players','Players, all time'],['games','Games played, all time'],['players_today','Players today'],['games_today','Games today'],['players_7d','Players, last 7 days'],['games_7d','Games, last 7 days'],['scores','Scores posted']];
+const g=document.getElementById('g');
+fetch(SB_URL+'/rest/v1/rpc/game_stats',{method:'POST',headers:{apikey:SB_KEY,Authorization:'Bearer '+SB_KEY,'Content-Type':'application/json'},body:'{}'})
+ .then(r=>r.json()).then(d=>{g.innerHTML='';L.forEach(([k,t])=>{const c=document.createElement('div');c.className='c';
+   const b=document.createElement('b');b.textContent=Number(d[k]||0).toLocaleString('en-CA');const s=document.createElement('span');s.textContent=t;c.append(b,s);g.appendChild(c)})})
+ .catch(()=>{g.innerHTML='<div class="c"><span>Stats are not connected yet.</span></div>'});
+</script>
+</body>
+</html>
